@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>キモいテトリス（スマホ全面対応）</title>
+<style>
+  body { margin:0; padding:0; background:black; color:lime; text-align:center; font-family:monospace; overflow:hidden;}
+  canvas { display:block; margin:0 auto; background:#111; touch-action: none; }
+  h1 { margin:10px 0; }
+  p { margin:5px 0; }
+</style>
+</head>
+<body>
+<h1>キモいテトリス</h1>
+<p>スワイプで操作：左右→移動、下→落下、上→回転</p>
+<canvas id="game"></canvas>
+
+<script>
+let ROW = 20, COL = 10;
+let SQ; // ブロックサイズは後で計算
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let board = Array.from({length: ROW}, () => Array(COL).fill(0));
+
+const colors = ["lime","pink","cyan","orange","yellow","red","purple"];
+const shapes = [
+  [[1,1,1],[0,1,0]],
+  [[0,2,2],[2,2,0]],
+  [[3,3,0],[0,3,3]],
+  [[4,4,4,4]],
+  [[5,5],[5,5]],
+  [[6,0,0],[6,6,6]],
+  [[0,0,7],[7,7,7]]
+];
+
+let current = randomPiece();
+
+function randomPiece() {
+  const type = Math.floor(Math.random()*shapes.length);
+  return { shape: shapes[type], color: colors[type], row: 0, col: 3 };
+}
+
+// ブロック描画
+function drawSquare(x,y,color){
+  ctx.fillStyle = color;
+  ctx.fillRect(x*SQ, y*SQ, SQ, SQ);
+  ctx.strokeStyle = "black";
+  ctx.strokeRect(x*SQ, y*SQ, SQ, SQ);
+}
+
+function drawBoard(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  for(let r=0;r<ROW;r++){
+    for(let c=0;c<COL;c++){
+      if(board[r][c]) drawSquare(c,r,board[r][c]);
+    }
+  }
+}
+
+function drawPiece(p){
+  for(let r=0;r<p.shape.length;r++){
+    for(let c=0;c<p.shape[r].length;c++){
+      if(p.shape[r][c]) drawSquare(p.col+c, p.row+r, p.color);
+    }
+  }
+}
+
+// 衝突判定
+function collision(p, dr, dc){
+  for(let r=0;r<p.shape.length;r++){
+    for(let c=0;c<p.shape[r].length;c++){
+      if(p.shape[r][c]){
+        let nr = p.row+r+dr, nc = p.col+c+dc;
+        if(nr>=ROW || nc<0 || nc>=COL || (nr>=0 && board[nr][nc])) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function merge(p){
+  for(let r=0;r<p.shape.length;r++){
+    for(let c=0;c<p.shape[r].length;c++){
+      if(p.shape[r][c]) board[p.row+r][p.col+c] = p.color;
+    }
+  }
+}
+
+function rotate(p){
+  const N = p.shape.length;
+  let newShape = Array.from({length:N},()=>Array(N).fill(0));
+  for(let r=0;r<N;r++){
+    for(let c=0;c<N;c++){
+      newShape[c][N-1-r] = p.shape[r][c];
+    }
+  }
+  if(!collision({shape:newShape,row:p.row,col:p.col},0,0)) p.shape = newShape;
+}
+
+function removeFullRows(){
+  for(let r=ROW-1;r>=0;r--){
+    if(board[r].every(x=>x)){
+      board.splice(r,1);
+      board.unshift(Array(COL).fill(0));
+      r++;
+    }
+  }
+}
+
+function drop(){
+  if(!collision(current,1,0)){
+    current.row++;
+  } else {
+    merge(current);
+    removeFullRows();
+    current = randomPiece();
+    if(collision(current,0,0)){
+      alert("GAME OVER\nキモさに負けた…");
+      board = Array.from({length: ROW}, () => Array(COL).fill(0));
+    }
+  }
+  drawBoard();
+  drawPiece(current);
+}
+
+// スワイプ操作
+let touchStartX = 0;
+let touchStartY = 0;
+
+canvas.addEventListener('touchstart', e => {
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+}, false);
+
+canvas.addEventListener('touchend', e => {
+  const touch = e.changedTouches[0];
+  const dx = touch.clientX - touchStartX;
+  const dy = touch.clientY - touchStartY;
+
+  if(Math.abs(dx) > Math.abs(dy)){
+    if(dx > 20){ if(!collision(current,0,1)) current.col++; } // 右
+    else if(dx < -20){ if(!collision(current,0,-1)) current.col--; } // 左
+  } else {
+    if(dy > 20){ drop(); } // 下
+    else if(dy < -20){ rotate(current); } // 上
+  }
+  drawBoard();
+  drawPiece(current);
+}, false);
+
+// 画面サイズに合わせてブロックサイズを決定
+function resizeCanvas(){
+  SQ = Math.floor(Math.min(window.innerWidth / COL, window.innerHeight / ROW));
+  canvas.width = SQ * COL;
+  canvas.height = SQ * ROW;
+  drawBoard();
+  drawPiece(current);
+}
+
+// 初期とリサイズ時
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+// 自動落下
+setInterval(drop, 500);
+
+</script>
+</body>
+</html>
